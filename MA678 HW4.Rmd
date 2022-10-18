@@ -1,0 +1,423 @@
+---
+title: "MA678 Homework 4"
+author: "Su Xu"
+date: "10/11/2022"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#environment set
+library("rstanarm")
+library("dplyr")
+library("ggplot2")
+library("tidyr")
+library("arm")
+```
+
+## 13.5 Interpreting logistic regression coefficients
+
+Here is a fitted model from the Bangladesh analysis predicting whether a person with high-arsenic drinking water will switch wells, given the arsenic level in their existing well and the distance to the nearest safe well:
+
+    stan_glm(formula = switch ~ dist100 + arsenic, family=binomial(link="logit"), data=wells)  
+                 Median MAD_SD  
+    (Intercept)   0.00   0.08  
+    dist100      -0.90   0.10  
+    arsenic       0.46   0.04  
+
+Compare two people who live the same distance from the nearest well but whose arsenic levels differ, with one person having an arsenic level of 0.5 and the other person having a level of 1.0. You will estimate how much more likely this second person is to switch wells. Give an approximate estimate, standard error, 50% interval, and 95% interval, using two different methods:
+
+```{r}
+#read data
+wells <- as.data.frame(read.csv("../data/ROS-Examples-master/Arsenic/data/wells.csv", header = T))
+#fit logistic regression model
+fit_1 <- stan_glm(formula = switch ~ dist100 + arsenic, 
+                  family = binomial(link="logit"),
+                  data = wells,
+                  refresh = 0)
+#export coefficients and standard errors
+fit_1$coefficients
+se(fit_1)
+```
+
+### (a)
+
+Use the divide-by-4 rule, based on the information from this regression output.
+
+Comparing two wells with the same distance to the nearest safe well, a difference of 1 in arsenic concentration corresponds to a 0.46 positive difference in the logit probability of switching. By using the divide-by-4 rule, $\frac{0.46}{4}\approx0.11$, 1 unit more in arsenic concentration corresponds to an approximately 11% positive difference in switching probability. Thus, comparing with the first person, the second person has 11% more likely to switch wells.
+
+standard error by using the divide-by-4 rule: $\frac{0.04}{4}=0.01$
+
+Since we are looking at the difference at 0.5, we need to multiply the coefficient and standard error by 0.5, thus, the coefficient is $0.11\times0.5=0.055$, standard error is $0.01\times0.5=0.005$
+
+95% CI: $[\hat{\beta}\pm 2se]=[0.055\pm2\times0.005]=[0.045,0.065]$
+
+50% CI: $[\hat{\beta}\pm \frac{2}{3}se]=[0.055\pm \frac{2}{3}0.005]=[0.052,0.058]$
+
+### (b)
+
+Use predictive simulation from the fitted model in R, under the assumption that these two people each live 50 meters from the nearest safe well.
+
+```{r}
+#set predict values
+new <- data.frame(dist100 = c(0.5,0.5), arsenic = c(0.5,1))
+#predict
+pred <- predict(fit_1, type = "response", newdata = new)
+#show predict results
+pred
+```
+
+Under the assumption that these two people each live 50 meters from the nearest safe well, the first person has a probability of 44.6% that would switch the well, and the second person has a probability of 50.4% that would switch the well.
+
+standard error: 0.04
+
+95% CI: $[\hat{\beta}\pm 2se]=[0.504\pm2\times0.04]=[0.424,0.584]$
+
+50% CI: $[\hat{\beta}\pm \frac{2}{3}se]=[0.504\pm \frac{2}{3}0.04]=[0.477,0.531]$
+
+## 13.7 Graphing a fitted logistic regression
+
+We downloaded data with weight (in pounds) and age (in years) from a random sample of American adults. We then defined a new variable:
+
+    heavy <- weight > 200
+
+and fit a logistic regression, predicting heavy from `height` (in inches):
+```
+    stan_glm(formula = heavy ~ height, family=binomial(link="logit"), data=health)  
+                  Median MAD_SD  
+    (Intercept)  -21.51   1.60  
+    height         0.28   0.02  
+```
+### (a)
+
+Graph the logistic regression curve (the probability that someone is heavy) over the approximate range of the data. Be clear where the line goes through the 50% probability point.
+
+```{r}
+curve(invlogit(-21.51+0.28*x), from = 60, to = 100, n = 1000)
+```
+
+### (b)
+
+Fill in the blank: near the 50% point, comparing two people who differ by one inch in height, you'll expect a difference of $\underline{7}$% in the probability of being heavy.
+
+## 13.8 Linear transformations
+
+In the regression from the previous exercise, suppose you replaced height in inches by height in centimeters. What would then be the intercept and slope?
+
+The logistic regression model with height in inches is $Pr(y_i=\text{heavy})=logit^{-1}(-21.51+0.28\times hight_{inch})$. Since $1\text{ inch}=2.54\text{ cm}$, the model becomes $Pr(y_i=\text{heavy})=logit^{-1}(-21.51+0.7112\times hight_{cm})$. The intercept is -21.51 and the slope is 0.7112
+
+## 13.10 Expressing a comparison of proportions as a logistic regression
+
+A randomized experiment is performed within a survey, and 1000 people are contacted. Half the people contacted are promised a \$5 incentive to participate, and half are not promised an incentive. The result is a 50% response rate among the treated group and 40% response rate among the control group.
+
+### (a)
+
+Set up these results as data in R. From these data, fit a logistic regression of response on the treatment indicator.
+
+```{r, warning = FALSE}
+#set up results
+n <- 1000
+treated <- rep(c(1,0), c(n/2,n/2))
+control <- rep(c(1,0,1,0), c(0.5,0.5,0.4,0.6)*n/2)
+#fit a logistic regression
+fit_2 <- stan_glm(control ~ treated,
+                  family = binomial(link="logit"),
+                  refresh = 0)
+#check coefficients and standard errors
+fit_2$coefficients
+se(fit_2)
+```
+
+### (b)
+
+Compare to the results from Exercise 4.1.
+
+the estimate is $0.5-0.4=0.1$, the standard error is $\sqrt{\frac{0.5^2+0.5^2}{500}}\approx0.03$
+
+By using the divide-by-4 rule, the estimate from logistic regression model is $\frac{0.408}{4}\approx0.102$, the standard error is $\frac{0.13}{4}=0.03$, which are consistent with the estimate and standard error of the average treatment effect.
+
+## 13.11 Building a logistic regression model
+
+The folder `Rodents` contains data on rodents in a sample of New York City apartments.
+
+### (a)
+
+Build a logistic regression model to predict the presence of rodents (the variable `rodent2` in the dataset) given indicators for the ethnic groups (`race`). Combine categories as appropriate. Discuss the estimated coefficients in the model.
+
+```{r}
+#data
+rodents <- as.data.frame(read.table("../data/ROS-Examples-master/Rodents/rodents.dat"))
+#tidy data
+  #seven races are replaced by the numbers from 1 to 7, 
+  #directly put the variable 'race' in the model would create a linear relationship in all the races
+  #change the variable's class to factor might be helpful
+race <- c("White",
+          "Black",
+          "Puerto Rican", 
+          "Other Hispanic",
+          "Asian/Pacific Islander",
+          "Amer-Indian/Native Alaskan",
+          "Two or more races")
+rodents$race <- factor(rodents$race, labels = race)
+#fit a logistic regression model
+fit_3 <- stan_glm(rodent2 ~ race, data = rodents, family=binomial(link="logit"), refresh = 0)
+#summary table
+summary(fit_3)
+```
+
+The intercept is -2.1, indicates that if all other races are having average population in the area, the probability that a white people has rodent in the building is $logit^{-1}(-2.2)=0.10$, 10%.
+
+The variables of each race shows the coefficients of races on the logit scale compared with white if other predictors are on their average values.
+
+For example, the variable race Black indicates that if all other races are having average population in the area, compare with the while people, the probability that a black people has rodent in the building is $logit^{-1}(1.4)=0.80$, 80%, higher than the white people.
+
+### (b)
+
+Add to your model some other potentially relevant predictors describing the apartment, building, and community district. Build your model using the general principles explained in Section 12.6. Discuss the coefficients for the ethnicity indicators in your model.
+
+```{r}
+#select variables that describing the apartment, building, and community district
+  #Unitflr2 describes the floor of rodents in building
+  #extflr5_2 describes if the building has missing or worn flooring
+  #poverty describes if the household below poverty
+  #housing describes the housing type
+  #duration describes number of years householder has lived in unit
+  #foreign describes if the householder is foreign-born
+#build the logistic regression model
+fit_more <- stan_glm(rodent2 ~ race + unitflr2 + extflr5_2 + poverty + housing + duration + foreign, data = rodents, family=binomial(link="logit"), refresh = 0)
+summary(fit_more)
+```
+
+the coefficients for the ethnicity indicators are all positive except the household with two or more races, which indicates that all other non white races have higher possibility of have a rodent in the building. Because we do not have the specific data for the components of the variable 'two or more races', it's hard to know if it is affected by the component of white.
+
+## 14.3 Graphing logistic regressions
+
+The well-switching data described in Section 13.7 are in the folder `Arsenic`.
+
+### (a)
+
+Fit a logistic regression for the probability of switching using log (distance to nearest safe well) as a predictor.
+
+```{r}
+#set the log variable
+wells$log_dist100 <- log(wells$dist)
+#check result
+#head(wells)
+#fit the logistic regression model
+fit_143 <- stan_glm(switch ~ log_dist100, 
+                    family = binomial(link = "logit"),
+                    data = wells,
+                    refresh = 0)
+#summary table
+summary(fit_143)
+```
+
+### (b)
+
+Make a graph similar to Figure 13.8b displaying Pr(switch) as a function of distance to nearest safe well, along with the data.
+
+```{r}
+#function to find jitter points
+jitter_binary <- function(a,jitt=0.05){
+  ifelse(a==0,
+         runif(length(a),0,jitt),
+         runif(length(a),1-jitt,1))
+}
+#graph the data and fitted model
+wells$switch_jitter <- jitter_binary(wells$switch)
+plot(wells$dist,wells$switch_jitter,
+     xlab = "Distance (in meters) to nearest safe well",
+     ylab = "Pr(switching)")
+curve(invlogit(coef(fit_143)[1] + coef(fit_143)[2]*x), add = TRUE, col = 2)
+```
+
+### (c)
+
+Make a residual plot and binned residual plot as in Figure 14.8.
+
+```{r}
+#residual plot
+plot(predict(fit_143), resid(fit_143),
+     xlab = "Estimated Pr(switching)",
+     ylab = "Observed - estimated")
+abline(h=0,lty=2,col="grey")
+#binned residual plot
+binnedplot(x = predict(fit_143),
+           y = resid(fit_143),
+           xlab = "Estimated Pr(switching)",
+           ylab = "Average residual")
+```
+
+### (d)
+
+Compute the error rate of the fitted model and compare to the error rate of the null model.
+
+```{r}
+#error rate of the fitted model
+predicted <- fitted(fit_143)
+error_rate <- mean((predicted>0.5 & fit_143$y==0) | (predicted<0.5 & fit_143$y==1))
+error_rate
+#error rate of the null model
+error_rate_null <- mean((mean(predicted)>0.5 & wells$switch==0) | (mean(predicted)<0.5 & wells$switch==1))
+error_rate_null
+```
+
+### (e)
+
+Create indicator variables corresponding to `dist < 100`; `dist` between 100 and 200; and `dist > 200`. Fit a logistic regression for Pr(switch) using these indicators. With this new model, repeat the computations and graphs for part (a) of this exercise.
+
+```{r}
+#create indicator variable
+indicator <- NULL
+indicator[wells$dist < 100] <- 0
+indicator[wells$dist > 100 & wells$dist < 200] <- 1
+indicator[wells$dist > 200] <- 2
+#transfer the indicator into a factor variable
+indicator <- as.factor(indicator)
+#Fit a logistic regression for Pr(switch) using these indicators
+fit_1432 <- stan_glm(wells$switch ~ indicator, 
+                    family = binomial(link = "logit"),
+                    refresh = 0)
+  #summary table
+summary(fit_1432)
+#graph the data and fitted model
+plot(wells$dist,wells$switch_jitter,
+     xlab = "Distance (in meters) to nearest safe well",
+     ylab = "Pr(switching)")
+curve(invlogit(coef(fit_1432)[1] + coef(fit_1432)[2]*x), 
+      add = TRUE, 
+      col = 2)
+curve(invlogit(coef(fit_1432)[1] + coef(fit_1432)[3]*x), 
+      add = TRUE, 
+      col = 3)
+```
+
+## 14.7 Model building and comparison
+
+Continue with the well-switching data described in the previous exercise.
+
+### (a)
+
+Fit a logistic regression for the probability of switching using, as predictors, distance, log(arsenic), and their interaction. Interpret the estimated coefficients and their standard errors.
+
+```{r}
+#create variable log(arsenic)
+wells$arsenic_log <- log(wells$arsenic)
+#fit a logistic regression model
+fit_147 <- stan_glm(switch ~ dist + arsenic_log + dist:arsenic_log, 
+                    data = wells,
+                    family = binomial(link = "logit"),
+                    refresh = 0)
+#summary table
+summary(fit_147)
+#export coefficients and standard error
+fit_147$coefficients
+fit_147$ses
+```
+
+$constant\text{ } term$$logit^{-1}(0.49)=0.62$ is the estimated probability of switching, if the distance to the nearest safe well is 0 and the arsenic level of the current well is 0. At the average values of `dist = 48` and `log(arsenic) = 0.31`, where the probability of switching is $\text{logit}^{-1}(0.49-0.009\times48+0.99\times0.31-0.002\times48\times0.31)=\text{logit}^{-1}(0.33514)=0.583$
+
+coefficient for distance: when log(arsenic) is at its average value, where distance has a coefficient of $-0.08-0.002\times0.31=-0.081$ on the logit scale. By using the divide-by-4 rule, $\frac{-0.081}{4}=-0.02$. Thus, at the mean level of log(arsenic) in the data, each 1 meters of distance corresponds to an approximate 2% negative difference in probability of switching.
+
+coefficient for log(arsenic): when dist is at its average value, where log(arsenic) has a coefficient of $0.98-0.002\times48=0.884$. By using the divide-by-4 rule, $\frac{0.884}{4}=0.221$. Thus, at the mean level of dist in the data, each 1 log(arsenic) level increase corresponds to an approximate 22.1% positive difference in probability of switching.
+
+coefficient for the interaction term:
+
+1.  looking from one direction, for each additional unit of log(arsenic), the value -0.002 is added to the coefficient for distance.
+
+2.  looking at it the other way, for each additional 1 meter of distance to the nearest well, the value -0.002 is added to the coefficient for arsenic.
+
+### (b)
+
+Make graphs as in Figure 14.3 to show the relation between probability of switching, distance, and arsenic level.
+
+```{r}
+#graph to show the relation between probability of switching and distance
+plot(wells$dist, 
+     wells$switch_jitter, 
+     xlim = c(0,max(wells$dist)),
+     xlab = "Distance (in meters) to nearest safe well",
+     ylab = "Pr(switching)")
+  #red curve when log(arsenic) is 0.5
+curve(invlogit(cbind(1,x,0.5,0.5*x) %*% coef(fit_147)), 
+      add = TRUE, 
+      col = 2)
+  #green curve when log(arsenic) is 1.0
+curve(invlogit(cbind(1,x,1.0,1.0*x) %*% coef(fit_147)), 
+      add = TRUE, 
+      col = 3)
+
+#graph to show the relation between probability of switching and log(arsenic)
+plot(wells$arsenic_log,
+     wells$switch_jitter,
+     xlim = c(0,max(wells$arsenic_log)),
+     xlab = "log(Arsenic) concentration in well water",
+     ylab = "Pr(switching)")
+  #red curve when distance is 0
+curve(invlogit(cbind(1,0,x,0*x) %*% coef(fit_147)), 
+      add = TRUE, 
+      col = 2)
+  #green curve when distance is 50
+curve(invlogit(cbind(1,50,x,50*x) %*% coef(fit_147)), 
+      add = TRUE, 
+      col = 3)
+
+```
+
+### (c)
+
+Following the procedure described in Section 14.4, compute the average predictive differences corresponding to:
+
+i.  A comparison of `dist` = 0 to `dist` = 100, with `arsenic` held constant.
+
+```{r}
+#dist = 0 with arsenic held constant
+compare_0 <-invlogit(coef(fit_147)[1] + coef(fit_147)[2]*0 + coef(fit_147)[3]*wells$arsenic_log + coef(fit_147)[4]*0*wells$arsenic_log)
+#dist = 100 with arsenic held constant
+compare_100 <- invlogit(coef(fit_147)[1] + coef(fit_147)[2]*100 + coef(fit_147)[3]*wells$arsenic_log + coef(fit_147)[4]*100*wells$arsenic_log)
+#the difference
+diff1 <- mean((compare_100 - compare_0))
+diff1
+```
+
+The result shows that if the value of arsenic held constant, households that live 100 meters away to nearest safe well has 21.2% negative less possibility of switching well.
+
+ii. A comparison of `dist` = 100 to `dist` = 200, with `arsenic` held constant.
+
+```{r}
+#dist = 200 with arsenic held constant
+compare_200 <- invlogit(coef(fit_147)[1] + coef(fit_147)[2]*200 + coef(fit_147)[3]*wells$arsenic_log + coef(fit_147)[4]*200*wells$arsenic_log)
+#the difference
+diff2 <- mean((compare_200 - compare_100))
+diff2
+```
+
+The result shows that if the value of arsenic held constant, compare with households that live 100 meters away to nearest safe well, households that live 200 meters away have 20.9% negative less possibility of switching well.
+
+iii. A comparison of `arsenic` = 0.5 to `arsenic` = 1.0, with `dist` held constant.
+
+```{r}
+#arsenic = 0.5 with dist held constant
+compare2_0.5 <- invlogit(coef(fit_147)[1] + coef(fit_147)[2]*wells$dist + coef(fit_147)[3]*0.5 + coef(fit_147)[4]*0.5*wells$dist)
+#arsenic = 1.0 with dist held constant
+compare2_1 <- invlogit(coef(fit_147)[1] + coef(fit_147)[2]*wells$dist + coef(fit_147)[3]*1 + coef(fit_147)[4]*1*wells$dist)
+#the difference
+diff3 <- mean(compare2_1 - compare2_0.5)
+diff3
+```
+
+The result shows that if the value of distance held constant, compare with households that have arsenic value of 0.5, households that have arsenic value of 1 has 9.2% positive more possibility of switching well.
+
+iv. A comparison of `arsenic` = 1.0 to `arsenic` = 2.0, with `dist` held constant.
+
+```{r}
+#arsenic = 2.0 with dist held constant
+compare2_2 <- invlogit(coef(fit_147)[1] + coef(fit_147)[2]*wells$dist + coef(fit_147)[3]*2 + coef(fit_147)[4]*2*wells$dist)
+#the difference
+diff4 <- mean(compare2_2 - compare2_1)
+diff4
+```
+
+The result shows that if the value of distance held constant, compare with households that have arsenic value of 1, households that have arsenic value of 2 has 13.5% positive more possibility of switching well.

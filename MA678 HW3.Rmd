@@ -1,0 +1,189 @@
+---
+title: "MA678 Homework 3"
+author: "Su Xu"
+date: "10/04/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(rstanarm)
+```
+
+## 4.4 Designing an experiment
+You want to gather data to determine which of two students is a better basketball shooter. You plan to have each student take $N$ shots and then compare their shooting percentages. Roughly how large does $N$ have to be for you to have a good chance of distinguishing a 30% shooter from a 40% shooter? 
+
+We can use the two-proportions Z test to determine the number of shots for each students to have a good chance of distinguishing a 30% shooter from a 40% shooter.
+
+Assume $p_1=0.3$ as the proportion of the first shooter, and $p_2=0.4$ as the proportion of the second shooter.
+
+$H_0: p_1 = p_2$
+
+$H_a: p_1 < p_2$
+
+$\hat{p}_{difference}=p_2-p_1=0.4-0.3=0.1$
+
+$z=\frac{\hat{p}}{\sqrt{(\hat{p}\times(1-\hat{p}))/N}}$
+
+$z_{0.05}=1.96$, for rejecting the null hypothesis and distinguish a 30% shooter from a 40% shooter, z value from the function need to be larger than $z_{0.05}=1.96$
+
+Thus, $\frac{\hat{p}}{\sqrt{(\hat{p}\times(1-\hat{p}))/N}}=\frac{0.1}{\sqrt{(0.1\times0.9)/N}}>1.96$
+
+$N > 5.88^2 \approx 35$
+
+Thus, roughly 35 shots have to be for us to have a good chance of distinguishing a 30% shooter from a 40% shooter
+
+
+
+## 4.6 Hypothesis testing
+The following are the proportions of girl births in Vienna for each month in girl births 1908 and 1909 (out of an average of 3900 births per month):
+
+```{r}
+birthdata <- c(.4777,.4875,.4859,.4754,.4874,.4864,.4813,.4787,.4895,.4797,.4876,.4859,
+               .4857,.4907,.5010,.4903,.4860,.4911,.4871,.4725,.4822,.4870,.4823,.4973)
+```
+
+The data are in the folder `Girls`. These proportions were used by von Mises (1957) to support  a claim that that the sex ratios were less variable than would be expected under the binomial  distribution. We think von Mises was mistaken in that he did not account for the possibility that this discrepancy could arise just by chance.
+
+### (a)
+Compute the standard deviation of these proportions and compare to the standard deviation that would be expected if the sexes of babies were independently decided with a constant probability over the 24-month period.
+
+```{r}
+girl_sd <- sd(birthdata)
+girl_mean <- mean(birthdata)
+n <- 3900
+girl_esd <- sqrt((girl_mean*(1-girl_mean))/n)
+girl_sd
+girl_esd
+```
+
+the standard deviation of these proportions is about 0.0064, while the standard deviation that would be expected if the sexes of babies were independently decided with a constant probability over the 24-moth period is about 0.008
+
+
+### (b)
+The observed standard deviation of the 24 proportions will not be identical to its theoretical expectation. In this case, is this difference small enough to be explained by random variation? Under the randomness model, the actual variance should have a distribution with expected value equal to the theoretical variance, and proportional to a $\chi^2$ random variable with 23 degrees of freedom; see page 53. 
+
+```{r, warning=FALSE}
+sd(birthdata)^2*(23/((sd(birthdata)*sqrt(3900))^2))
+```
+
+By using the formula in page 53, $s_y^2\times\frac{n-1}{\sigma^2}$, we can get the $\chi^2$ test value of df 23 is 0.0059, which is close to 0 and pretty small, which indicates that the difference between observed and expected is small enough to be explained by random variation.
+
+## 5.5 Distribution of averages and differences
+The heights of men in the United States are approximately normally distributed with mean 69.1 inches and standard deviation 2.9 inches. The heights of women are approximately normally distributed with mean 63.7 inches and standard deviation 2.7 inches. Let $x$ be the average height of 100 randomly sampled men, and $y$ be the average height of 100 randomly sampled women. In R, create 1000 simulations of $x - y$ and plot their histogram. Using the simulations, compute the mean and standard deviation of the distribution of $x - y$ and compare to their exact values.
+
+```{r}
+# set parameters
+male_mean <- 69.1
+male_sd <- 2.9
+female_mean <- 63.7
+female_sd <- 2.7
+#1000 times simulations of x - y
+set.seed(55)
+n_sims <- 1000
+sim_xy <- rep(NA, n_sims)
+for (s in 1:n_sims) {
+  x <- mean(rnorm(100,male_mean, male_sd))
+  y <- mean(rnorm(100,female_mean, female_sd))
+  sim_xy[s] <- x - y
+}
+#histogram plot
+hist(sim_xy, main = "histogram plot of x - y", xlab = "x - y")
+#the mean and standard deviation of the distribution of x - y
+simxy_mean <- mean(sim_xy)
+simxy_sd <- sd(sim_xy)
+simxy_var <- var(sim_xy)
+simxy_mean
+simxy_sd
+simxy_var
+```
+
+$\bar{X}-\bar{Y} \sim N(69.1-63.7,\frac{2.9^2}{100}+\frac{2.7^2}{100})$, which is $\bar{X}-\bar{Y} \sim N(5.4,0.147)$. The mean and variance from the 1000 simulated distribution are 5.391 and 0.146, which are close to the exact values.
+
+## 5.8 Coverage of confidence intervals: 
+On page 15 there is a discussion of an experimental study of an education-related intervention in Jamaica, in which the point estimate of the treatment effect, on the log scale, was 0.35 with a standard error of 0.17. Suppose the true effect is 0.10---this seems more realistic than the point estimate of 0.35---so that the treatment on average would increase earnings by 0.10 on the log scale. Use simulation to study the statistical properties of this experiment, assuming the standard error is 0.17.
+
+### (a)
+Simulate 1000 independent replications of the experiment assuming that the point estimate is normally distributed with mean 0.10 and standard deviation 0.17.
+
+```{r, warning=FALSE}
+#set parameters
+te_mean <- 0.1
+te_sd <- 0.17
+#since the assumption gives out the point estimates, we can use the median and median absolute deviation to make a simulation
+  #1,000 draws from the normal distribution with given mean and standard deviation
+set.seed(58)
+n_sims <- 1000
+z <- rep(NA, n_sims)
+for (s in 1:n_sims){
+  z[s] <- rnorm(n_sims,te_mean,te_sd)
+}
+hist(z)
+cat("mean =", mean(z),
+    "median = ", median(z),
+    "sd =", sd(z),
+    "mad sd =", mad(z))
+```
+
+### (b)
+For each replication, compute the 95% confidence interval. Check how many of these intervals include the true parameter value.
+
+```{r}
+rep_ci_upper <- rep(NA,n_sims)
+for (i in 1:n_sims){
+  rep_ci_upper[i] <- quantile(rnorm(n_sims,te_mean,te_sd),0.975)
+}
+rep_ci_lower <- rep(NA, n_sims)
+for (i in 1:n_sims){
+  rep_ci_lower[i] <- quantile(rnorm(n_sims,te_mean,te_sd),0.025)
+}
+rep_ci <- cbind(rep_ci_lower,rep_ci_upper)
+head(rep_ci)
+```
+
+### (c)
+Compute the average and standard deviation of the 1000 point estimates; these represent the  mean and standard deviation of the sampling distribution of the estimated treatment effect. 
+
+```{r}
+z_mean <- mean(z)
+z_sd <- sd(z)
+cbind(z_mean,z_sd)
+```
+
+the average and standard deviation of the 1000 point estimates are 0.113 and 0.173
+
+## 10.3 Checking statistical significance
+In this exercise and the next, you will simulate two variables that are statistically independent of each other to see what happens when we run a regression to  predict one from the other. Generate 1000 data points from a normal distribution with mean 0 and standard deviation 1 by typing `var1 <- rnorm(1000,0,1)` in R. Generate another variable in the same way (call it `var2`). Run a regression of one variable on the other. Is the slope coefficient "statistically significant"? We do not recommend summarizing regressions in this  way, but it can be useful to understand how this works, given that others will do so. 
+
+```{r}
+set.seed(103)
+var1 <- rnorm(1000,0,1)
+var2 <- rnorm(1000,0,1)
+varset <- as.data.frame(cbind(var1,var2))
+# var1 vs. var2
+var_lm <- stan_glm(var2 ~ var1, data = varset, refresh = 0)
+var_lm$ses
+```
+
+The p-value of the intercept and var1 are both smaller than 0.05, which indicates that the slope coefiicient is statistically significant.
+
+## 11.3 Coverage of confidence intervals
+Consider the following procedure:
+
+- Set $n = 100$ and draw $n$ continuous values $x_i$ uniformly distributed between 0 and 10. Then simulate data from the model $y_i = a + b x_i + \text{error}_i$, for $i = 1, \ldots, n$, with $a = 2$, $b = 3$, and  independent errors from a normal distribution.  
+
+- Regress $y$ on $x$. Look at the median and mad sd of $b$. Check to see if the interval formed by the median $\pm$ 2 mad sd includes the true value, $b = 3$.
+
+- Repeat the above two steps 1000 times.
+
+
+### (a)
+True or false: the interval should contain the true value approximately 950 times. Explain your answer.
+
+True. The distribution of $\epsilon_i$ is normally distributed, it is a unknown parameter that it's variability would not affect the confidence interval, thus, within 95% confidence interval, we can say that the interval contain the true value approximately 950 times.
+
+### (b)
+Same as above, except the error distribution is bimodal, not normal. True or false: the interval should contain the true value approximately 950 times. Explain your answer.
+
+False, if the distribution of error is binomial distribution, the value of errors will only contains 0 and 1, it is a known parameter that it's variablity would affect the confidence interval, thus, within 95% confidence interval, we cannot say that the interval contains the true value approximately 950 times
